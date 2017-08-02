@@ -61,6 +61,7 @@ else:
     #    model.embed.weight.data = questions.vocab.vectors
     if args.cuda:
         model.cuda()
+        print("Shift model to GPU")
 
 criterion = nn.NLLLoss() # negative log likelyhood loss function
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -88,7 +89,7 @@ for epoch in range(args.epochs):
         optimizer.zero_grad()
 
         answer = model(batch)
-        n_correct += ((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum()) == batch.label.size()[1]
+        n_correct += (((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum(dim=0)) == batch.label.size()[0]).sum()
         n_total += batch.batch_size # Not correct here
         loss = criterion(answer, batch.label.view(-1,1)[:,0])
         loss.backward()
@@ -106,7 +107,7 @@ for epoch in range(args.epochs):
             n_dev_correct = 0
             for dev_batch_idx, dev_batch in enumerate(dev_iters):
                 answer = model(dev_batch)
-                n_dev_correct += ((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum()) == dev_batch.label.size()[1]
+                n_dev_correct += (((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0)) == dev_batch.label.size()[0]).sum()
                 dev_loss = criterion(answer, dev_batch.label.view(-1,1)[:,0])
             dev_acc = 100. * n_dev_correct / len(dev)
             print("dev accuracy: ", dev_acc)
