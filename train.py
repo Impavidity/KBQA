@@ -64,7 +64,7 @@ if config.birnn:
 print(config)
 
 if args.resume_snapshot:
-    model = torch.load(args.resume_snapshot, map_location=lambda storage, location: storage.cuda(args.gpu))
+    model = torch.load(args.resume_snapshot, map_location=lambda storage, location: storage)
 else:
     model = EntityDetection(config)
     if args.word_vectors:
@@ -87,7 +87,6 @@ early_stop = False
 os.makedirs(args.save_path, exist_ok=True)
 
 
-print("Start to train")
 
 if args.test or args.dev:
     data_iters = test_iters if args.test else dev_iters
@@ -106,13 +105,13 @@ if args.test or args.dev:
         n_data_correct += ((torch.max(answer, 1)[1].view(data_batch.label.size()).data == data_batch.label.data).sum(dim=0)
                             == data_batch.label.size()[0]).sum()
         n_data_total += data_batch.batch_size
-        index_tag = np.transpose(torch.max(answer, 1)[1].cpu().data.numpy())
-        tag_array = index2tag[index_tag]
-        index_question = np.transpose(data_batch.question.cpu().data.numpy())
-        question_array = index2word[index_question]
+        #index_tag = np.transpose(torch.max(answer, 1)[1].view(data_batch.label.size()).cpu().data.numpy())
+        #tag_array = index2tag[index_tag]
+        #index_question = np.transpose(data_batch.question.cpu().data.numpy())
+        #question_array = index2word[index_question]
         # Print the result
-        for i in range(data_batch.batch_size):
-            print(" ".join(question_array[i]), '\t', " ".join(tag_array[i]))
+        #for i in range(data_batch.batch_size):
+        #    print(" ".join(question_array[i]), '\t', " ".join(tag_array[i]))
 
     data_acc = 100. * n_data_correct / n_data_total
     print("{} accuracy: {:10.6f}%".format("Test" if args.test else "Dev", data_acc))
