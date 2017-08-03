@@ -127,7 +127,7 @@ for epoch in range(args.epochs):
         optimizer.step()
 
         if iterations % args.log_every == 0:
-            print("[{:6.2f} epoch] Accumulated Accuracy: {:8.4f}".format(n_total / train_instance_total, 100. * n_correct / n_total))
+            print("[{:6.2f} epoch] Accumulated Accuracy: {:8.4f}%".format(epoch + n_total / train_instance_total, 100. * n_correct / n_total))
 
         if iterations % args.dev_every == 0:
             model.eval()
@@ -145,9 +145,9 @@ for epoch in range(args.epochs):
             if dev_acc > best_dev_acc:
                 best_dev_acc = dev_acc
                 iters_not_improved = 0
-                snapshot_path = os.path.join(args.save_path, "best_model_devacc_{}_epoch_{}.pt".format(best_dev_acc, n_total / train_instance_total))
+                snapshot_path = os.path.join(args.save_path, "best_model_devacc_{}_epoch_{}.pt".format(best_dev_acc, epoch + n_total / train_instance_total))
                 torch.save(model, snapshot_path)
-                print("Updated and Save the best model, Accuracy on Development Set: {:8.4f}, Epoch: {:6.2f}".format(best_dev_acc, n_total / train_instance_total))
+                print("Updated and Save the best model, Accuracy on Development Set: {:8.4f}%, Epoch: {:6.2f}".format(best_dev_acc, epoch + n_total / train_instance_total))
             else:
                 iters_not_improved += 1
                 if iters_not_improved > patience:

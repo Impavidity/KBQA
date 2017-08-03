@@ -17,7 +17,7 @@ def get_args():
     parser.add_argument('--not_bidirectional', action='store_false', dest='birnn')
     parser.add_argument('--clip_gradient', type=float, default=0.5, help='gradient clipping')
     parser.add_argument('--log_every', type=int, default=50)
-    parser.add_argument('--dev_every', type=int, default=50)
+    parser.add_argument('--dev_every', type=int, default=100)
     parser.add_argument('--dropout_prob', type=float, default=0.3)
     parser.add_argument('--patience', type=int, default=10, help="number of epochs to wait before early stopping")
     parser.add_argument('--no_cuda', action='store_false', help='do not use CUDA', dest='cuda')
