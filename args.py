@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 
 def get_args():
     parser = ArgumentParser(description='Simple QA model - Ferhan Ture')
-    parser.add_argument('--epochs', type=int, default=40)
+    parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--batch_size', type=int, default=300)
     parser.add_argument('--rnn_type', type=str, default='lstm') # or use 'gru'
     parser.add_argument('--d_embed', type=int, default=300)

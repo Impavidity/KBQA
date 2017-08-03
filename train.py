@@ -8,6 +8,7 @@ from simple_qa_ner import SimpleQADataset
 from model import EntityDetection
 import time
 import os
+import glob
 
 # please set the configuration in the file : args.py
 args = get_args()
@@ -104,9 +105,13 @@ if args.test or args.dev:
         n_data_total += data_batch.batch_size
     data_acc = 100. * n_data_correct / n_data_total
     print("{} accuracy: {:10.6f}%".format("Test" if args.test else "Dev", data_acc))
+    exit()
 
 train_instance_total = len(train)
-for epoch in range(args.epochs):
+epoch = -1
+#for epoch in range(args.epochs):
+while True:
+    epoch += 1
     if early_stop:
         print("Early stopping. Epoch: {}. Best Dev. Acc. : {}".format(epoch, best_dev_acc))
     train_iters.init_epoch()
@@ -147,6 +152,9 @@ for epoch in range(args.epochs):
                 iters_not_improved = 0
                 snapshot_path = os.path.join(args.save_path, "best_model_devacc_{}_epoch_{}.pt".format(best_dev_acc, epoch + n_total / train_instance_total))
                 torch.save(model, snapshot_path)
+                for f in glob.glob(args.save_path + '/*'):
+                    if f != snapshot_path:
+                        os.remove(f)
                 print("Updated and Save the best model, Accuracy on Development Set: {:8.4f}%, Epoch: {:6.2f}".format(best_dev_acc, epoch + n_total / train_instance_total))
             else:
                 iters_not_improved += 1
