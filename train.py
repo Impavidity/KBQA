@@ -43,7 +43,6 @@ else:
     os.makedirs(os.path.dirname(args.vector_cache), exist_ok=True)
     torch.save(questions.vocab.vectors, args.vector_cache)
 
-#print(labels.vocab.stoi)
 # Buckets
 train_iters, dev_iters, test_iters = data.BucketIterator.splits(
     (train, dev, test), batch_size=args.batch_size, device=args.gpu)
@@ -63,11 +62,11 @@ if config.birnn:
 print(config)
 
 if args.resume_snapshot:
-    pass
+    model = torch.load(args.resume_snapshot, map_location=lambda storage, location: storage.cuda(args.gpu))
 else:
     model = EntityDetection(config)
-    #if args.word_vectors:
-    #    model.embed.weight.data = questions.vocab.vectors
+    if args.word_vectors:
+        model.embed.weight.data = questions.vocab.vectors
     if args.cuda:
         model.cuda()
         print("Shift model to GPU")
@@ -83,25 +82,43 @@ num_iters_in_epoch = (len(train) // args.batch_size) + 1
 patience = args.patience * num_iters_in_epoch # for early stopping
 iters_not_improved = 0 # this parameter is used for stopping early
 early_stop = False
+os.makedirs(args.save_path, exist_ok=True)
 
 
 print("Start to train")
 
+if args.test or args.dev:
+    data_iters = test_iters if args.test else dev_iters
+    model.eval()
+    data_iters.init_epoch()
+    n_data_correct = 0
+    n_data_total = 0
+    for data_batch_idx, data_batch in enumerate(data_iters):
+        answer = model(data_batch)
+        # Get the tag from distribution, match the tag with gold label. 1 for correctness, 0 for error.
+        # Sum along the sentence (dim = 0, because batch = sentence_length * batch_size)
+        # If all tags are correct in one sentence, the sum should be equal to sentence length
+        # Finally sum over batch_size, get the correct instance number in this batch
+        n_data_correct += ((torch.max(answer, 1)[1].view(data_batch.label.size()).data == data_batch.label.data).sum(dim=0)
+                            == data_batch.label.size()[0]).sum()
+        n_data_total += data_batch.batch_size
+    data_acc = 100. * n_data_correct / n_data_total
+    print("{} accuracy: {:10.6f}%".format("Test" if args.test else "Dev", data_acc))
+
+train_instance_total = len(train)
 for epoch in range(args.epochs):
     if early_stop:
-        print("Early stopping. Epoch: {}. Dest Dev. Acc. : {}".format(epoch, best_dev_acc))
+        print("Early stopping. Epoch: {}. Best Dev. Acc. : {}".format(epoch, best_dev_acc))
     train_iters.init_epoch()
     n_correct, n_total = 0, 0
     for batch_idx, batch in enumerate(train_iters):
         iterations += 1
         model.train()
         optimizer.zero_grad()
-
         answer = model(batch)
-        n_correct += (((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum(dim=0)) == batch.label.size()[0]).sum()
-        #n_correct += (torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum()
+        n_correct += ((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum(dim=0)
+                       == batch.label.size()[0]).sum()
         n_total += batch.batch_size
-        #n_total +=  batch.label.size()[1] * batch.label.size()[0]
         loss = criterion(answer, batch.label.view(-1,1)[:,0])
         loss.backward()
 
@@ -110,7 +127,7 @@ for epoch in range(args.epochs):
         optimizer.step()
 
         if iterations % args.log_every == 0:
-            print(epoch, n_correct / n_total * 100, loss.data[0])
+            print("[{:6.2f} epoch] Accumulated Accuracy: {:8.4f}".format(n_total / train_instance_total, 100. * n_correct / n_total))
 
         if iterations % args.dev_every == 0:
             model.eval()
@@ -119,19 +136,18 @@ for epoch in range(args.epochs):
             n_dev_total = 0
             for dev_batch_idx, dev_batch in enumerate(dev_iters):
                 answer = model(dev_batch)
-                n_dev_correct += (((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0)) == dev_batch.label.size()[0]).sum()
-                #n_dev_correct += (torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum()
-                #n_dev_total += dev_batch.label.size()[1] * dev_batch.label.size()[0]
-                dev_loss = criterion(answer, dev_batch.label.view(-1,1)[:,0])
+                n_dev_correct += ((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0)
+                                   == dev_batch.label.size()[0]).sum()
             dev_acc = 100. * n_dev_correct / len(dev)
-            #dev_acc = 100. * n_dev_correct / n_dev_total
-            print("dev accuracy: ", dev_acc)
+            print("Dev accuracy: {:10.6f}%".format(dev_acc))
 
             # update model
             if dev_acc > best_dev_acc:
                 best_dev_acc = dev_acc
                 iters_not_improved = 0
-                torch.save(model, "best_model")
+                snapshot_path = os.path.join(args.save_path, "best_model_devacc_{}_epoch_{}.pt".format(best_dev_acc, n_total / train_instance_total))
+                torch.save(model, snapshot_path)
+                print("Updated and Save the best model, Accuracy on Development Set: {:8.4f}, Epoch: {:6.2f}".format(best_dev_acc, n_total / train_instance_total))
             else:
                 iters_not_improved += 1
                 if iters_not_improved > patience:
