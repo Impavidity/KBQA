@@ -16,7 +16,6 @@ class SimpleQADataset(data.TabularDataset):
     @classmethod
     def splits(cls, text_field, label_field,
                train='train.txt', validation='valid.txt', test='test.txt'):
-        #prefix_name = 'annotated_fb_data_'
         prefix_name = 'annotated_fb_entity_'
         path = './data'
         return super(SimpleQADataset, cls).splits(
@@ -24,8 +23,5 @@ class SimpleQADataset(data.TabularDataset):
             format='TSV', fields=[('question', text_field), ('label', label_field)]
         )
 
-    @classmethod
-    def iters(cls, batch_size=32, device=0):
-        pass
 
 

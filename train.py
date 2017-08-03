@@ -9,6 +9,7 @@ from model import EntityDetection
 import time
 import os
 import glob
+import numpy as np
 
 # please set the configuration in the file : args.py
 args = get_args()
@@ -94,6 +95,8 @@ if args.test or args.dev:
     data_iters.init_epoch()
     n_data_correct = 0
     n_data_total = 0
+    index2tag = np.array(labels.vocab.itos)
+    index2word = np.array(questions.vocab.itos)
     for data_batch_idx, data_batch in enumerate(data_iters):
         answer = model(data_batch)
         # Get the tag from distribution, match the tag with gold label. 1 for correctness, 0 for error.
@@ -103,6 +106,14 @@ if args.test or args.dev:
         n_data_correct += ((torch.max(answer, 1)[1].view(data_batch.label.size()).data == data_batch.label.data).sum(dim=0)
                             == data_batch.label.size()[0]).sum()
         n_data_total += data_batch.batch_size
+        index_tag = np.transpose(torch.max(answer, 1)[1].cpu().data.numpy())
+        tag_array = index2tag[index_tag]
+        index_question = np.transpose(data_batch.question.cpu().data.numpy())
+        question_array = index2word[index_question]
+        # Print the result
+        for i in range(data_batch.batch_size):
+            print(" ".join(question_array[i]), '\t', " ".join(tag_array[i]))
+
     data_acc = 100. * n_data_correct / n_data_total
     print("{} accuracy: {:10.6f}%".format("Test" if args.test else "Dev", data_acc))
     exit()
