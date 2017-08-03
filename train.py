@@ -152,7 +152,7 @@ while True:
                 iters_not_improved = 0
                 snapshot_path = os.path.join(args.save_path, "best_model_devacc_{}_epoch_{}.pt".format(best_dev_acc, epoch + n_total / train_instance_total))
                 torch.save(model, snapshot_path)
-                for f in glob.glob(args.save_path + '/*'):
+                for f in glob.glob(args.save_path + '/best_model_devacc_*'):
                     if f != snapshot_path:
                         os.remove(f)
                 print("Updated and Save the best model, Accuracy on Development Set: {:8.4f}%, Epoch: {:6.2f}".format(best_dev_acc, epoch + n_total / train_instance_total))
