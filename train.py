@@ -7,6 +7,7 @@ from torchtext import data
 from simple_qa_ner import SimpleQADataset
 from model import EntityDetection
 import time
+import os
 
 # please set the configuration in the file : args.py
 args = get_args()
@@ -34,7 +35,15 @@ questions.build_vocab(train, dev) # Test dataset can not be used here for constr
 # build vocab for tags
 labels.build_vocab(train, dev)
 
-print(labels.vocab.stoi)
+
+if os.path.isfile(args.vector_cache):
+    questions.vocab.vectors = torch.load(args.vector_cache)
+else:
+    questions.vocab.load_vectors(wv_dir=args.data_cache, wv_type=args.word_vectors, wv_dim=args.d_embed)
+    os.makedirs(os.path.dirname(args.vector_cache), exist_ok=True)
+    torch.save(questions.vocab.vectors, args.vector_cache)
+
+#print(labels.vocab.stoi)
 # Buckets
 train_iters, dev_iters, test_iters = data.BucketIterator.splits(
     (train, dev, test), batch_size=args.batch_size, device=args.gpu)
@@ -89,8 +98,10 @@ for epoch in range(args.epochs):
         optimizer.zero_grad()
 
         answer = model(batch)
-        n_correct += (((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum(dim=0)) == batch.label.size()[0]).sum()
-        n_total += batch.batch_size # Not correct here
+        #n_correct += (((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum(dim=0)) == batch.label.size()[0]).sum()
+        n_correct += (torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum()
+        #n_total += batch.batch_size
+        n_total +=  batch.label.size()[1] * batch.label.size()[0]
         loss = criterion(answer, batch.label.view(-1,1)[:,0])
         loss.backward()
 
@@ -99,17 +110,21 @@ for epoch in range(args.epochs):
         optimizer.step()
 
         if iterations % args.log_every == 0:
-            print(epoch, n_correct / n_total * 100)
+            print(epoch, n_correct / n_total * 100, loss.data[0])
 
         if iterations % args.dev_every == 0:
             model.eval()
             dev_iters.init_epoch()
             n_dev_correct = 0
+            n_dev_total = 0
             for dev_batch_idx, dev_batch in enumerate(dev_iters):
                 answer = model(dev_batch)
-                n_dev_correct += (((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0)) == dev_batch.label.size()[0]).sum()
+                #n_dev_correct += (((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0)) == dev_batch.label.size()[0]).sum()
+                n_dev_correct += (torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum()
+                n_dev_total += dev_batch.label.size()[1] * dev_batch.label.size()[0]
                 dev_loss = criterion(answer, dev_batch.label.view(-1,1)[:,0])
-            dev_acc = 100. * n_dev_correct / len(dev)
+            #dev_acc = 100. * n_dev_correct / len(dev)
+            dev_acc = 100. * n_dev_correct / n_dev_total
             print("dev accuracy: ", dev_acc)
 
             # update model
