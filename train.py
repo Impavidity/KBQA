@@ -10,6 +10,8 @@ import time
 import os
 import glob
 import numpy as np
+from evaluation import evaluation
+
 
 # please set the configuration in the file : args.py
 args = get_args()
@@ -33,9 +35,9 @@ labels = data.Field(sequential=True)
 train, dev, test = SimpleQADataset.splits(questions, labels)
 
 # build vocab for questions
-questions.build_vocab(train, dev) # Test dataset can not be used here for constructing the vocab
+questions.build_vocab(train, dev, test) # Test dataset can not be used here for constructing the vocab
 # build vocab for tags
-labels.build_vocab(train, dev)
+labels.build_vocab(train, dev, test)
 
 
 if os.path.isfile(args.vector_cache):
@@ -79,14 +81,15 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr)
 # train the model
 iterations = 0
 start = time.time()
-best_dev_acc = 0
+best_dev_f1 = 0
 num_iters_in_epoch = (len(train) // args.batch_size) + 1
 patience = args.patience * num_iters_in_epoch # for early stopping
 iters_not_improved = 0 # this parameter is used for stopping early
 early_stop = False
 os.makedirs(args.save_path, exist_ok=True)
 
-
+index2tag = np.array(labels.vocab.itos)
+index2word = np.array(questions.vocab.itos)
 
 if args.test or args.dev:
     data_iters = test_iters if args.test else dev_iters
@@ -94,8 +97,9 @@ if args.test or args.dev:
     data_iters.init_epoch()
     n_data_correct = 0
     n_data_total = 0
-    index2tag = np.array(labels.vocab.itos)
-    index2word = np.array(questions.vocab.itos)
+
+    gold_list = []
+    pred_list = []
     for data_batch_idx, data_batch in enumerate(data_iters):
         answer = model(data_batch)
         # Get the tag from distribution, match the tag with gold label. 1 for correctness, 0 for error.
@@ -105,16 +109,19 @@ if args.test or args.dev:
         n_data_correct += ((torch.max(answer, 1)[1].view(data_batch.label.size()).data == data_batch.label.data).sum(dim=0)
                             == data_batch.label.size()[0]).sum()
         n_data_total += data_batch.batch_size
-        #index_tag = np.transpose(torch.max(answer, 1)[1].view(data_batch.label.size()).cpu().data.numpy())
-        #tag_array = index2tag[index_tag]
-        #index_question = np.transpose(data_batch.question.cpu().data.numpy())
-        #question_array = index2word[index_question]
+
+        index_tag = np.transpose(torch.max(answer, 1)[1].view(data_batch.label.size()).cpu().data.numpy())
+        tag_array = index2tag[index_tag]
+        index_question = np.transpose(data_batch.question.cpu().data.numpy())
+        question_array = index2word[index_question]
+        gold_list.append(np.transpose(data_batch.label.cpu().data.numpy()))
+        pred_list.append(index_tag)
         # Print the result
         #for i in range(data_batch.batch_size):
         #    print(" ".join(question_array[i]), '\t', " ".join(tag_array[i]))
-
-    data_acc = 100. * n_data_correct / n_data_total
-    print("{} accuracy: {:10.6f}%".format("Test" if args.test else "Dev", data_acc))
+    P, R, F = evaluation(gold_list, pred_list, index2tag)
+    #data_acc = 100. * n_data_correct / n_data_total
+    print("{} Precision: {:10.6f}% Recall: {:10.6f}% F1 Score: {:10.6f}%".format("Test" if args.test else "Dev", P, R, F))
     exit()
 
 train_instance_total = len(train)
@@ -123,7 +130,7 @@ epoch = -1
 while True:
     epoch += 1
     if early_stop:
-        print("Early stopping. Epoch: {}. Best Dev. Acc. : {}".format(epoch, best_dev_acc))
+        print("Early stopping. Epoch: {}. Best Dev. F1 : {}".format(epoch, best_dev_f1))
     train_iters.init_epoch()
     n_correct, n_total = 0, 0
     for batch_idx, batch in enumerate(train_iters):
@@ -149,23 +156,28 @@ while True:
             dev_iters.init_epoch()
             n_dev_correct = 0
             n_dev_total = 0
+            gold_list = []
+            pred_list = []
             for dev_batch_idx, dev_batch in enumerate(dev_iters):
                 answer = model(dev_batch)
                 n_dev_correct += ((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0)
                                    == dev_batch.label.size()[0]).sum()
-            dev_acc = 100. * n_dev_correct / len(dev)
-            print("Dev accuracy: {:10.6f}%".format(dev_acc))
+                index_tag = np.transpose(torch.max(answer, 1)[1].view(dev_batch.label.size()).cpu().data.numpy())
+                gold_list.append(np.transpose(dev_batch.label.cpu().data.numpy()))
+                pred_list.append(index_tag)
+            P, R, F = evaluation(gold_list, pred_list, index2tag)
+            print("{} Precision: {:10.6f}% Recall: {:10.6f}% F1 Score: {:10.6f}%".format("Dev", P, R, F))
 
             # update model
-            if dev_acc > best_dev_acc:
-                best_dev_acc = dev_acc
+            if F > best_dev_f1:
+                best_dev_f1 = F
                 iters_not_improved = 0
-                snapshot_path = os.path.join(args.save_path, "best_model_devacc_{}_epoch_{}.pt".format(best_dev_acc, epoch + n_total / train_instance_total))
+                snapshot_path = os.path.join(args.save_path, "best_model_devf1_{}_epoch_{}.pt".format(best_dev_f1, epoch + n_total / train_instance_total))
                 torch.save(model, snapshot_path)
-                for f in glob.glob(args.save_path + '/best_model_devacc_*'):
+                for f in glob.glob(args.save_path + '/best_model_devf1_*'):
                     if f != snapshot_path:
                         os.remove(f)
-                print("Updated and Save the best model, Accuracy on Development Set: {:8.4f}%, Epoch: {:6.2f}".format(best_dev_acc, epoch + n_total / train_instance_total))
+                print("Updated and Save the best model, F1 on Development Set: {:8.4f}%, Epoch: {:6.2f}".format(best_dev_f1, epoch + n_total / train_instance_total))
             else:
                 iters_not_improved += 1
                 if iters_not_improved > patience:
