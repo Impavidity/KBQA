@@ -160,7 +160,7 @@ while True:
             pred_list = []
             for dev_batch_idx, dev_batch in enumerate(dev_iters):
                 answer = model(dev_batch)
-                n_dev_correct += ((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0)
+                n_dev_correct += ((torch.max(answer, 1)[1].view(dev_batch.label.size()).data == dev_batch.label.data).sum(dim=0) \
                                    == dev_batch.label.size()[0]).sum()
                 index_tag = np.transpose(torch.max(answer, 1)[1].view(dev_batch.label.size()).cpu().data.numpy())
                 gold_list.append(np.transpose(dev_batch.label.cpu().data.numpy()))
