@@ -106,7 +106,7 @@ if args.test or args.dev:
         # Sum along the sentence (dim = 0, because batch = sentence_length * batch_size)
         # If all tags are correct in one sentence, the sum should be equal to sentence length
         # Finally sum over batch_size, get the correct instance number in this batch
-        n_data_correct += ((torch.max(answer, 1)[1].view(data_batch.label.size()).data == data_batch.label.data).sum(dim=0)
+        n_data_correct += ((torch.max(answer, 1)[1].view(data_batch.label.size()).data == data_batch.label.data).sum(dim=0) \
                             == data_batch.label.size()[0]).sum()
         n_data_total += data_batch.batch_size
 
@@ -138,7 +138,7 @@ while True:
         model.train()
         optimizer.zero_grad()
         answer = model(batch)
-        n_correct += ((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum(dim=0)
+        n_correct += ((torch.max(answer, 1)[1].view(batch.label.size()).data == batch.label.data).sum(dim=0) \
                        == batch.label.size()[0]).sum()
         n_total += batch.batch_size
         loss = criterion(answer, batch.label.view(-1,1)[:,0])
